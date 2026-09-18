@@ -138,7 +138,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
 .bib-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
 .bcard{background:var(--paper);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;display:flex;flex-direction:column;gap:10px}
 .bcard h3{font-size:20px}
-.bcard h3::before{content:"";display:block;width:30px;height:4px;border-radius:4px;background:var(--ouro);margin-bottom:12px}
+.bcard h3::before{content:"";display:block;width:30px;height:4px;border-radius:4px;background:var(--azul);margin-bottom:12px}
 .bcard .bc-logo{height:44px;display:flex;align-items:center}
 .bcard .bc-logo img{max-height:44px;max-width:160px;object-fit:contain}
 .bcard .meta{font-size:13.5px;color:var(--muted);display:grid;gap:2px}
@@ -164,7 +164,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
 .c-card{background:var(--paper);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;position:relative;z-index:1}
 .c-card+.c-card{margin-top:14px}
 .c-card h2{font-size:22px;margin-bottom:12px}
-.c-card h2::before{content:"";display:block;width:30px;height:4px;border-radius:4px;background:var(--ouro);margin-bottom:12px}
+.c-card h2::before{content:"";display:block;width:30px;height:4px;border-radius:4px;background:var(--azul);margin-bottom:12px}
 .c-logo-cli{display:flex;align-items:center;min-height:56px;padding-bottom:18px;margin-bottom:18px;border-bottom:1px solid var(--line)}
 .c-logo-cli img{max-height:72px;max-width:230px;width:auto;object-fit:contain;display:block}
 .c-lista{margin:0;padding:0;list-style:none;display:grid;gap:10px}
@@ -176,7 +176,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
 .c-mvv{display:grid;gap:14px;margin:0}
 .c-mvv dt{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;color:var(--azul)}
 .c-mvv dd{margin:2px 0 0}
-.c-faixa{border-left:4px solid var(--ouro);background:#F4F7FC;padding:14px 16px;border-radius:0 12px 12px 0;font-size:15px}
+.c-faixa{border-left:4px solid var(--azul);background:#F4F7FC;padding:14px 16px;border-radius:0 12px 12px 0;font-size:15px}
 .c-endereco{font-weight:600;margin-bottom:14px}
 .c-mapa{width:100%;height:210px;border:0;border-radius:12px;display:block;margin-bottom:14px;background:var(--mist)}
 .c-botoes{display:grid;gap:10px}
@@ -816,17 +816,36 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
 
   /* ---------------- consulta de briefings ---------------- */
   var filtro = 'todos';
+  // deixa os dados de um briefing sempre no formato esperado (texto em todos os campos)
+  function sanear(d){
+    if (typeof d === 'string') { try { d = JSON.parse(d); } catch(e){ d = null; } }
+    if (!d || typeof d !== 'object') return null;
+    var o = {};
+    Object.keys(d).forEach(function(k){
+      var v = d[k];
+      if (v == null) return;
+      if (Array.isArray(v)) v = v.map(function(x){ return typeof x === 'object' ? JSON.stringify(x) : String(x); }).join('\n');
+      else if (typeof v === 'object') v = JSON.stringify(v);
+      else v = String(v);
+      if (v.trim() !== '') o[k] = v;
+    });
+    if (!o.m && d.razao_social) o.m = String(d.razao_social);
+    return o.m ? o : null;
+  }
   function todos(){
     var all = lerLocal();
     var lista = [];
     BIB.forEach(function(x, i){
       var k = 'eq:' + tkey(x);
       if (all[k]) return; // existe versão editada neste computador
-      lista.push({ id: 'e' + i, key: k, origem: 'equipe', cnpj: x.cnpj || '', data: x.data, at: '' });
+      var de = sanear(x.data); if (!de) return;
+      lista.push({ id: 'e' + i, key: k, origem: 'equipe', cnpj: String(x.cnpj || ''), data: de, at: '' });
     });
     Object.keys(all).forEach(function(k){
-      var eq = k.indexOf('eq:') === 0;
-      lista.push({ id: 'l:' + k, key: k, origem: eq ? 'equipe' : 'local', editado: eq, cnpj: all[k].cnpj || '', data: all[k].data, at: all[k].at });
+      var eq = k.indexOf('eq:') === 0, it = all[k] || {};
+      var dl = sanear(it.data);
+      if (!dl) { lista.push({ id: 'l:' + k, key: k, origem: 'local', quebrado: true, cnpj: String(it.cnpj || ''), data: { m: 'Briefing com dados incompletos' }, at: it.at || '' }); return; }
+      lista.push({ id: 'l:' + k, key: k, origem: eq ? 'equipe' : 'local', editado: eq, cnpj: String(it.cnpj || ''), data: dl, at: it.at || '' });
     });
     return lista;
   }
@@ -850,6 +869,8 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
     var g = $('bibGrade');
     if (!lista.length) { g.innerHTML = '<div class="vazio">Nenhum briefing encontrado' + (termo ? ' para essa busca' : '') + '. Crie um na aba "Criar briefing".</div>'; return; }
     g.innerHTML = lista.map(function(x, i){
+     try {
+      if (x.quebrado) throw new Error('dados incompletos');
       var d = x.data, cid = cidadeDe(d.end);
       var quando = x.at ? new Date(x.at).toLocaleDateString('pt-BR') : '';
       var lgc = logoOk(d.lg);
@@ -871,6 +892,14 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
             (x.editado ? '<button class="lnk" data-a="equipe" type="button">Atualizar na equipe</button><button class="lnk" data-a="desfazer" type="button">Desfazer edição</button>' : '') +
           '</span>' +
         '</div></article>';
+     } catch(err) {
+      if (window.console) console.error('Briefing não exibido:', x, err);
+      return '<article class="bcard" data-id="' + esc(x.id) + '">' +
+        '<span class="selo local">Não foi possível exibir</span>' +
+        '<h3>' + esc((x.data && x.data.m) || 'Briefing sem nome') + '</h3>' +
+        '<div class="meta"><span>Este briefing salvo neste computador está com dados incompletos.' + (x.cnpj ? ' CNPJ ' + esc(x.cnpj) + '.' : '') + '</span></div>' +
+        '<div class="acoes">' + (x.origem === 'local' || x.editado ? '<button class="btn btn-linha btn-mini" data-a="excluir" type="button">Excluir</button>' : '') + '</div></article>';
+     }
     }).join('');
   }
   $('busca').addEventListener('input', renderBib);
@@ -885,6 +914,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
     var btn = e.target.closest('[data-a]'); if (!btn) return;
     var id = btn.closest('.bcard').dataset.id;
     var item = todos().filter(function(x){ return x.id === id; })[0]; if (!item) return;
+    if (item.quebrado && btn.dataset.a !== 'excluir') return;
     var d = item.data, link = linkPara(d, item.cnpj).url, a = btn.dataset.a;
     if (a === 'abrir') window.open(link, '_blank', 'noopener');
     if (a === 'copiar') copiar(link).then(function(){ toast('Link de ' + d.m + ' copiado.'); }, function(){ toast('Não consegui copiar. Use "Abrir página" e copie o endereço.'); });
