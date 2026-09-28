@@ -426,8 +426,8 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
 
     var h = '<header class="c-topo"><div class="in">' +
       '<img class="c-logo" src="' + LOGO_B + '" alt="Evolue Treinamento e Desenvolvimento">' +
-      '<p class="kicker">Material da Evolue para a sua próxima etapa</p>' +
-      '<h1>Conheça a ' + esc(nome) + '</h1>' +
+      '<p class="kicker">Conheça a empresa · material da Evolue para a sua próxima etapa</p>' +
+      '<h1>' + esc(nome) + '</h1>' +
       (d.v ? '<span class="vaga">Vaga: ' + esc(d.v) + '</span>' : '') +
       '<p class="sub">Separamos o essencial sobre a empresa para você chegar à entrevista presencial sabendo onde está entrando.</p>' +
       '</div></header><main class="c-main">';
@@ -491,7 +491,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
       var dc = JSON.parse(JSON.stringify(achado.data));
       if (ps.v) dc.v = ps.v;
       boxC.innerHTML = candidateBody(dc);
-      document.title = 'Conheça a ' + dc.m + ' · Evolue';
+      document.title = dc.m + ' · Evolue';
     } else {
       boxC.innerHTML = '<main class="c-main" style="margin-top:40px"><section class="c-card"><h2>Link não encontrado</h2><p>Este material não está mais disponível. Peça à Evolue para reenviar o link.</p></section></main>';
     }
@@ -501,7 +501,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
     var dados = decode(hash.slice(2));
     var box = $('candidato');
     box.classList.remove('oculto');
-    if (dados) { box.innerHTML = candidateBody(dados); document.title = 'Conheça a ' + (dados.m || 'empresa') + ' · Evolue'; }
+    if (dados) { box.innerHTML = candidateBody(dados); document.title = (dados.m || 'Conheça a empresa') + ' · Evolue'; }
     else box.innerHTML = '<main class="c-main" style="margin-top:40px"><section class="c-card"><h2>Link incompleto</h2><p>Este link não abriu corretamente. Peça à Evolue para reenviar.</p></section></main>';
     return;
   }
@@ -767,7 +767,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
     linkAtual = ''; resetEnvio();
     aviso('stGerar', 'O conteúdo mudou. Gere o link de novo antes de enviar.', 'neutro');
   }
-  function msgZap(d, link){ return 'Olá! Aqui está um material para você conhecer a ' + (d.m || 'empresa') + ' antes da sua entrevista presencial:\n' + link; }
+  function msgZap(d, link){ return 'Olá! Segue um material sobre ' + (d.m || 'a empresa') + ' para você conhecer a empresa antes da entrevista presencial:\n' + link; }
   function urlZap(d, link, fone){
     fone = digits(fone);
     return 'https://web.whatsapp.com/send?' + (fone.length >= 10 ? 'phone=55' + fone + '&' : '') + 'text=' + encodeURIComponent(msgZap(d, link));
