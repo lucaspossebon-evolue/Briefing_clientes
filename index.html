@@ -150,6 +150,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
 .bcard h3{font-size:20px}
 .bcard h3::before{content:"";display:block;width:30px;height:4px;border-radius:4px;background:var(--azul);margin-bottom:12px}
 .bcard .bc-logo{height:44px;display:flex;align-items:center}
+.bcard .bc-logo.escuro{background:var(--navy);border-radius:10px;padding:6px 12px;height:auto;align-self:flex-start}
 .bcard .bc-logo img{max-height:44px;max-width:160px;object-fit:contain}
 .bcard .meta{font-size:13.5px;color:var(--muted);display:grid;gap:2px}
 .bcard .selo{align-self:flex-start;font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:99px;background:#F4F7FC;border:1px solid var(--line);color:var(--navy-2)}
@@ -1011,7 +1012,7 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
       var quando = x.at ? new Date(x.at).toLocaleDateString('pt-BR') : '';
       var lgc = logoOk(d.lg);
       return '<article class="bcard" data-id="' + esc(x.id) + '">' +
-        (lgc ? '<div class="bc-logo"><img src="' + esc(lgc) + '" alt="" onerror="this.parentNode.remove()"></div>' : '') +
+        (lgc ? '<div class="bc-logo' + (d.lgbg === 'escuro' ? ' escuro' : '') + '"><img src="' + esc(lgc) + '" alt="" onerror="this.parentNode.remove()"></div>' : '') +
         '<span class="selo">' + (quando ? 'Atualizado em ' + quando : 'Compartilhado com a equipe') + (x.por ? ' · ' + esc(String(x.por).split('@')[0]) : '') + '</span>' +
         '<h3>' + esc(d.m) + '</h3>' +
         (d.v ? '<div class="vaga">Vaga: ' + esc(d.v) + '</div>' : '') +
