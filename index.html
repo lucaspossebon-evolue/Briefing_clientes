@@ -35,8 +35,8 @@ window.EVOLUE_BRIEFING = {
   // Usuário do robô no Telegram, sem @ (ex.: 'evolue_robo_bot'). Deixe vazio para esconder o botão.
   TELEGRAM_ROBO: 'lucasevoluebot',
   // Supabase: cole aqui os dados do projeto (Settings > API)
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: ''
+  SUPABASE_URL: 'https://wmfevnhfkgrwvernyqcf.supabase.co',
+  SUPABASE_ANON_KEY: 'sb_publishable_UHvzB_OuCtbda_rGxunDXw_WGBIE6wH'
 };
 
 // A biblioteca da equipe fica no arquivo briefings.js (mesma pasta).
@@ -104,7 +104,7 @@ a{color:var(--azul)}
 .campo{margin-bottom:14px}
 .campo label{display:block;font-weight:600;font-size:14.5px;margin-bottom:5px}
 .campo .ajuda{font-weight:400;color:var(--muted);font-size:13px}
-input[type=text],input[type=tel],input[type=search],select,textarea{width:100%;padding:11px 13px;font:inherit;font-size:15px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;transition:border-color .15s,box-shadow .15s}
+input[type=text],input[type=tel],input[type=search],input[type=password],input[type=email],select,textarea{width:100%;padding:11px 13px;font:inherit;font-size:15px;color:var(--ink);background:#fff;border:1.5px solid var(--line);border-radius:10px;transition:border-color .15s,box-shadow .15s}
 textarea{min-height:84px;resize:vertical;line-height:1.5}
 input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);box-shadow:0 0 0 3px rgba(22,48,90,.14)}
 .linha-cnpj{display:flex;gap:12px}
@@ -1078,12 +1078,21 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
     var email = $('logEmail').value.trim(), senha = $('logSenha').value;
     if (!email || !senha) { avisoLogin('Informe e-mail e senha.', 'erro'); return; }
     avisoLogin('Entrando...', 'neutro');
+    var demorou = setTimeout(function(){
+      avisoLogin('O banco não respondeu. Verifique a internet, algum bloqueador de scripts, ou se a chave e a URL do Supabase estão corretas.', 'erro');
+    }, 12000);
     SB.auth.signInWithPassword({ email: email, password: senha }).then(function(r){
+      clearTimeout(demorou);
       if (r.error) throw r.error;
       $('logSenha').value = ''; avisoLogin('');
       abrirSistema(r.data && r.data.user);
     }).catch(function(e){
-      avisoLogin(/Invalid login/i.test(e && e.message || '') ? 'E-mail ou senha incorretos.' : 'Não consegui entrar: ' + erroBanco(e), 'erro');
+      clearTimeout(demorou);
+      if (window.console) console.error('Falha no login:', e);
+      var m = (e && e.message) || '';
+      if (/Invalid login/i.test(m)) avisoLogin('E-mail ou senha incorretos.', 'erro');
+      else if (/Email not confirmed/i.test(m)) avisoLogin('Este usuário ainda não foi confirmado. No Supabase, em Authentication > Users, confirme o e-mail.', 'erro');
+      else avisoLogin('Não consegui entrar: ' + (m || 'erro desconhecido') + '. Abra o console (F12) para ver os detalhes.', 'erro');
     });
   }
   $('btnEntrar').addEventListener('click', entrar);
@@ -1096,13 +1105,21 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
   limpar();
   if (!SB) {
     telaLogin();
-    avisoLogin('Falta configurar o Supabase: preencha SUPABASE_URL e SUPABASE_ANON_KEY no topo do index.html.', 'erro');
+    if (!CFG.SUPABASE_URL || !CFG.SUPABASE_ANON_KEY) {
+      avisoLogin('Falta configurar o Supabase neste arquivo (SUPABASE_URL e SUPABASE_ANON_KEY). Se você já subiu a versão nova, recarregue com Ctrl+Shift+R.', 'erro');
+    } else if (!window.supabase) {
+      avisoLogin('A biblioteca do Supabase não carregou. Verifique a internet ou algum bloqueador de scripts e recarregue a página.', 'erro');
+    } else {
+      avisoLogin('Não consegui iniciar a conexão com o banco. Recarregue a página.', 'erro');
+    }
   } else {
     telaLogin();
+    var t0 = setTimeout(function(){ avisoLogin('O Supabase está demorando a responder. Se o login não funcionar, verifique a internet ou um bloqueador de scripts.', 'neutro'); }, 10000);
     SB.auth.getSession().then(function(r){
+      clearTimeout(t0);
       var sess = r && r.data && r.data.session;
       if (sess && sess.user) abrirSistema(sess.user);
-    });
+    }).catch(function(e){ clearTimeout(t0); if (window.console) console.error('getSession:', e); });
   }
 
   /* ---------------- link "Revisar no sistema" vindo do robô ---------------- */
