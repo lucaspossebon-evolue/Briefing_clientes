@@ -727,8 +727,134 @@ input:focus,textarea:focus,select:focus{outline:none;border-color:var(--navy-2);
     if (linkAtual) montarZap();
   });
 
-  /* ---------------- 1. CNPJ ---------------- */
+/* ---------------- 1. CNPJ ---------------- */
+  /* Três fontes públicas da Receita. Se a primeira falhar, tenta a seguinte
+     sozinho. Todas devolvem os mesmos campos, no formato da BrasilAPI. */
+  var FONTES_CNPJ = [
+    {
+      nome: 'BrasilAPI',
+      url: function(c){ return 'https://brasilapi.com.br/api/cnpj/v1/' + c; },
+      trata: function(j){ return j; }
+    },
+    {
+      nome: 'CNPJ.ws',
+      url: function(c){ return 'https://publica.cnpj.ws/cnpj/' + c; },
+      trata: function(j){
+        var e = j.estabelecimento || {};
+        return {
+          razao_social: j.razao_social || '',
+          nome_fantasia: e.nome_fantasia || '',
+          data_inicio_atividade: e.data_inicio_atividade || '',
+          descricao_situacao_cadastral: e.situacao_cadastral || '',
+          cnae_fiscal_descricao: (e.atividade_principal && e.atividade_principal.descricao) || '',
+          porte: (j.porte && j.porte.descricao) || '',
+          descricao_tipo_de_logradouro: e.tipo_logradouro || '',
+          logradouro: e.logradouro || '',
+          numero: e.numero || '',
+          complemento: e.complemento || '',
+          bairro: e.bairro || '',
+          municipio: (e.cidade && e.cidade.nome) || '',
+          uf: (e.estado && e.estado.sigla) || '',
+          cep: digits(e.cep)
+        };
+      }
+    },
+    {
+      nome: 'ReceitaWS',
+      url: function(c){ return 'https://receitaws.com.br/v1/cnpj/' + c; },
+      trata: function(j){
+        if (String(j.status).toUpperCase() === 'ERROR') throw new Error(j.message || 'CNPJ não encontrado.');
+        return {
+          razao_social: j.nome || '',
+          nome_fantasia: j.fantasia || '',
+          data_inicio_atividade: String(j.abertura || '').split('/').reverse().join('-'),
+          descricao_situacao_cadastral: j.situacao || '',
+          cnae_fiscal_descricao: (j.atividade_principal && j.atividade_principal[0] && j.atividade_principal[0].text) || '',
+          porte: j.porte || '',
+          descricao_tipo_de_logradouro: '',
+          logradouro: j.logradouro || '',
+          numero: j.numero || '',
+          complemento: j.complemento || '',
+          bairro: j.bairro || '',
+          municipio: j.municipio || '',
+          uf: j.uf || '',
+          cep: digits(j.cep)
+        };
+      }
+    }
+  ];
+
+  /* Percorre as fontes até uma responder. Devolve {dados, fonte} ou
+     rejeita com um erro já em português. */
+  function buscarCnpj(c, i, limites){
+    i = i || 0;
+    limites = limites || 0;
+    if (i >= FONTES_CNPJ.length) {
+      return Promise.reject(new Error(limites
+        ? 'As consultas de CNPJ atingiram o limite de uso por minuto. Espere um minuto e tente de novo, ou siga pelo passo 2 preenchendo o cadastro à mão.'
+        : 'Nenhuma das consultas de CNPJ respondeu agora. Siga pelo passo 2 e preencha nome e endereço à mão; o briefing sai igual.'));
+    }
+    var f = FONTES_CNPJ[i];
+    return fetch(f.url(c))
+      .then(function(r){
+        if (r.status === 404) { var e404 = new Error('CNPJ não encontrado na Receita. Confira os números.'); e404.fim = true; throw e404; }
+        if (r.status === 429) { var e429 = new Error('limite'); e429.limite = true; throw e429; }
+        if (!r.ok) throw new Error('fonte fora do ar');
+        return r.json();
+      })
+      .then(function(j){ return { dados: f.trata(j), fonte: f.nome }; })
+      .catch(function(e){
+        if (e && e.fim) throw e;
+        if (window.console) console.warn('Consulta de CNPJ falhou em ' + f.nome + ':', e);
+        return buscarCnpj(c, i + 1, limites + (e && e.limite ? 1 : 0));
+      });
+  }
+
   $('btnCnpj').addEventListener('click', consultar);
+  function consultar(){
+    var c = digits($('cnpj').value);
+    if (c.length !== 14) { aviso('stCnpj', 'Digite os 14 números do CNPJ.', 'erro'); return; }
+    aviso('stCnpj', 'Consultando a Receita Federal...', 'neutro');
+    $('btnCnpj').disabled = true;
+    buscarCnpj(c)
+      .then(function(res){
+        var j = res.dados;
+        ultimoCad = j;
+        var fant = j.nome_fantasia || j.razao_social || '';
+        var ano = String(j.data_inicio_atividade || '').slice(0, 4);
+        var cidade = title(j.municipio);
+        var logr = [title(j.descricao_tipo_de_logradouro), title(j.logradouro)].filter(Boolean).join(' ');
+        var end = [
+          logr + (j.numero && j.numero !== 'S/N' ? ', ' + j.numero : ', s/n'),
+          j.complemento ? title(j.complemento) : '',
+          j.bairro ? 'bairro ' + title(j.bairro) : '',
+          cidade + (j.uf ? ' (' + j.uf + ')' : ''),
+          j.cep ? 'CEP ' + String(j.cep).replace(/^(\d{5})(\d{3})$/, '$1-$2') : ''
+        ].filter(Boolean).join(', ');
+        if (!$('f_m').value) $('f_m').value = title(fant);
+        if (!$('f_end').value) $('f_end').value = end;
+        if (!$('f_sobre').value && ano) $('f_sobre').value = 'A ' + title(fant) + ' foi fundada em ' + ano + ', em ' + cidade + ' (' + j.uf + '), e atua com ' + String(j.cnae_fiscal_descricao || '').toLowerCase() + '.';
+        var fmtData = String(j.data_inicio_atividade || '').split('-').reverse().join('/');
+        $('cadastro').innerHTML =
+          '<b>Razão social</b><span>' + esc(j.razao_social) + '</span>' +
+          '<b>Situação</b><span>' + esc(j.descricao_situacao_cadastral || '-') + '</span>' +
+          '<b>Abertura</b><span>' + esc(fmtData || '-') + '</span>' +
+          '<b>Atividade</b><span>' + esc(j.cnae_fiscal_descricao || '-') + '</span>' +
+          '<b>Porte</b><span>' + esc(j.porte || j.descricao_porte || '-') + '</span>' +
+          '<b>Fonte</b><span>' + esc(res.fonte) + '</span>';
+        $('cadastro').classList.remove('oculto');
+        var ja = procurarPorCnpj(c);
+        aviso('stCnpj', ja
+          ? 'Atenção: já existe um briefing de ' + ja.data.m + ' na consulta. Você pode abrir por lá e só ajustar a vaga.'
+          : 'Nome, endereço e um primeiro texto de apresentação foram preenchidos (fonte: ' + res.fonte + '). Confira antes de seguir.',
+          ja ? 'neutro' : 'ok');
+        atualizarPrevia();
+      })
+      .catch(function(e){
+        aviso('stCnpj', (e && e.message) || 'Não foi possível consultar o CNPJ agora.', 'erro');
+      })
+      .then(function(){ $('btnCnpj').disabled = false; });
+  }
   function consultar(){
     var c = digits($('cnpj').value);
     if (c.length !== 14) { aviso('stCnpj', 'Digite os 14 números do CNPJ.', 'erro'); return; }
